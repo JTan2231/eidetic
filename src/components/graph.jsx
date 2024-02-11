@@ -144,8 +144,6 @@ export function Graph(props) {
                         })),
                     );
 
-                    console.log(edges);
-
                     setMouseDown(null);
                     setDragOffset({ x: 0, y: 0 });
                 }}
@@ -162,7 +160,7 @@ export function Graph(props) {
                         style={{
                             zIndex: "1",
                             transformOrigin: "top left",
-                            transform: `translate(${e.x + dragOffset.x + 25}px, ${e.y + dragOffset.y + 25}px) rotate(${e.angle}deg)`,
+                            transform: `translate(${e.x + dragOffset.x + NODE_DIAMETER / 2}px, ${e.y + dragOffset.y + NODE_DIAMETER / 2}px) rotate(${e.angle}deg)`,
                             width: `${e.length}px`,
                             height: "2px",
                             left: "0",
