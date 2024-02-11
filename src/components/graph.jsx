@@ -5,6 +5,10 @@ function getRandom(max) {
     return Math.random() * max;
 }
 
+function coinFlip() {
+    return Math.random() > 0.8;
+}
+
 function Node(props) {
     const [position, setPosition] = useState({ x: 0, y: 0 });
 
@@ -13,7 +17,7 @@ function Node(props) {
     }, [props.position]);
 
     return (
-        <div key={props.key} className="node" style={{ position: 'absolute', left: `${position.x}px`, top: `${position.y}px` }} />
+        <div key={props.key} className="node" style={{ position: 'absolute', left: `${position.x}px`, top: `${position.y}px`, zIndex: '2' }} />
     );
 }
 
@@ -67,13 +71,13 @@ export function Graph(props) {
         let edges = [];
         for (let i = 0; i < nodePositions.length; i++) {
             for (let j = 0; j < nodePositions.length; j++) {
-                if (i != j) {
+                if (i != j && coinFlip()) {
                     const [p1, p2] = [nodePositions[i], nodePositions[j]];
                     const length = Math.sqrt(Math.pow(p2.x - p1.x, 2) + Math.pow(p2.y - p1.y, 2));
                     const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x) * (180 / Math.PI);
-                    const transform = `translate(${p1.x}px, ${p1.y}px) rotate(${angle}deg)`;
+                    const transform = `translate(${p1.x + 25}px, ${p1.y + 25}px) rotate(${angle}deg)`;
 
-                    edges.push(<div style={{ transform: transform, width: `${length}px`, height: '5px', position: 'absolute', backgroundColor: '#ddd' }} />);
+                    edges.push(<div style={{ zIndex: '1', transformOrigin: 'top left', transform: transform, width: `${length}px`, height: '2px', left: '0', top: '0', position: 'absolute', backgroundColor: '#ddd' }} />);
                 }
             }
         }
