@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import "../styles/graph.css";
 
 const NODE_DIAMETER = 50;
-const UNFOCUSED_OPACITY = 0.1;
+const UNFOCUSED_OPACITY = 0.15;
 
 function getRandom(max) {
     return Math.random() * max;
@@ -28,13 +28,16 @@ function Node(props) {
             className="node"
             style={{
                 position: "absolute",
-                left: `${position.x}px`,
-                top: `${position.y}px`,
+                left: `${position.x + props.offset.x}px`,
+                top: `${position.y + props.offset.y}px`,
                 width: `${NODE_DIAMETER}px`,
                 height: `${NODE_DIAMETER}px`,
                 zIndex: "2",
                 cursor: "pointer",
-                opacity: `${props.opacity}`,
+                opacity: `${props.focused || props.highlighted ? 1 : UNFOCUSED_OPACITY}`,
+                transform: `scale(${props.focused ? 1.25 : 1})`,
+                transformOrigin: "center",
+                transition: props.offset.x === 0 && props.offset.y === 0 ? "all 0.3s" : "",
             }}
             onMouseDown={stopPropagation}
             onMouseUp={stopPropagation}
@@ -182,20 +185,16 @@ export function Graph(props) {
                     <Node
                         key={index}
                         nodeKey={index}
-                        position={{ x: position.x + dragOffset.x, y: position.y + dragOffset.y }}
+                        position={{ x: position.x, y: position.y }}
+                        offset={{ x: dragOffset.x, y: dragOffset.y }}
                         focusCallback={{
                             enter: (key) => {
                                 setFocusKey(key);
                             },
                             exit: () => setFocusKey(-1),
                         }}
-                        opacity={
-                            focusKey === -1 ||
-                            index === focusKey ||
-                            edgeMap[focusKey].includes(index)
-                                ? 1
-                                : UNFOCUSED_OPACITY
-                        }
+                        focused={index === focusKey}
+                        highlighted={focusKey === -1 || edgeMap[focusKey].includes(index)}
                     />
                 ))}
                 {edges.map((e) => {
@@ -214,7 +213,8 @@ export function Graph(props) {
                                         ? "1"
                                         : `${UNFOCUSED_OPACITY}`,
                                 position: "absolute",
-                                backgroundColor: "#888",
+                                backgroundColor: e.from === focusKey ? "#444" : "#888",
+                                transition: "opacity 0.3s, background-color 0.3s",
                             }}
                         />
                     );
