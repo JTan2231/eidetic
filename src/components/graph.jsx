@@ -9,14 +9,42 @@ function getRandom(max) {
 }
 
 function coinFlip() {
-    return Math.random() > 0.8;
+    return Math.random() > 0;
+}
+
+function calculateScalePosition(elementPosition, observerPosition) {
+    return {
+        x: (elementPosition.x - observerPosition.x) / observerPosition.z,
+        y: (elementPosition.y - observerPosition.y) / observerPosition.z,
+    };
+}
+
+function useViewportSize() {
+    const [size, setSize] = useState({ width: window.innerWidth, height: window.innerHeight });
+
+    useEffect(() => {
+        const handleResize = () => {
+            setSize({ width: window.innerWidth, height: window.innerHeight });
+        };
+
+        window.addEventListener("resize", handleResize);
+
+        return () => window.removeEventListener("resize", handleResize);
+    }, []);
+
+    return size;
 }
 
 function Node(props) {
     const [position, setPosition] = useState({ x: 0, y: 0 });
 
     useEffect(() => {
-        setPosition(props.position);
+        const scaledPosition = calculateScalePosition(
+            { x: props.position.x, y: props.position.y },
+            props.observerPosition,
+        );
+
+        setPosition(scaledPosition);
     }, [props.position]);
 
     const stopPropagation = (event) => {
@@ -28,16 +56,16 @@ function Node(props) {
             className="node"
             style={{
                 position: "absolute",
-                left: `${position.x + props.offset.x}px`,
-                top: `${position.y + props.offset.y}px`,
+                left: `${position.x}px`,
+                top: `${position.y}px`,
                 width: `${NODE_DIAMETER}px`,
                 height: `${NODE_DIAMETER}px`,
                 zIndex: "2",
                 cursor: "pointer",
                 opacity: `${props.focused || props.highlighted ? 1 : UNFOCUSED_OPACITY}`,
-                transform: `scale(${props.focused ? 1.25 : 1})`,
+                transform: `scale(${(1 / props.observerPosition.z) * (props.focused ? 1.25 : 1)})`,
                 transformOrigin: "center",
-                transition: props.offset.x === 0 && props.offset.y === 0 ? "all 0.3s" : "",
+                transition: "transform 0.3s, opacity 0.3s",
             }}
             onMouseDown={stopPropagation}
             onMouseUp={stopPropagation}
@@ -53,15 +81,23 @@ export function Graph(props) {
     // this is probably a temporary variable
     const [edges, setEdges] = useState([]);
     const [edgeMap, setEdgeMap] = useState({});
-    const [mouseDown, setMouseDown] = useState(null);
-
-    const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
 
     const [focusKey, setFocusKey] = useState(-1);
 
+    const [mouseDown, setMouseDown] = useState(null);
+    const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+
+    const viewport = useViewportSize();
+
+    const [observerPosition, setObserverPosition] = useState({
+        x: 0,
+        y: 0,
+        z: 1,
+    });
+
     // grid sizes
     const gridSquareSize = { x: 100, y: 100 };
-    const gridSizePixels = { x: window.innerWidth - 100, y: window.innerHeight - 50 };
+    const gridSizePixels = { x: viewport.width, y: viewport.height };
     const gridSize = {
         x: Math.floor(gridSizePixels.x / gridSquareSize.x),
         y: Math.floor(gridSizePixels.y / gridSquareSize.y),
@@ -95,7 +131,7 @@ export function Graph(props) {
         }
 
         let newNodes = [];
-        for (let i = 0; i < 10; i++) {
+        for (let i = 0; i < props.count; i++) {
             let candidate = {
                 key: i,
                 x: getRandom(gridSizePixels.x),
@@ -142,6 +178,10 @@ export function Graph(props) {
         return edges;
     };
 
+    useEffect(() => {
+        regenerate();
+    }, [props.count]);
+
     const onMouseMove = (event) => {
         if (mouseDown) {
             const newOffset = { x: event.pageX - mouseDown.x, y: event.pageY - mouseDown.y };
@@ -149,18 +189,31 @@ export function Graph(props) {
         }
     };
 
+    const handleWheel = (event) => {
+        console.log("scroll", event);
+        const direction = event.deltaY > 0 ? 1 : -1;
+
+        const z = Math.max(0.2, Math.min(2, observerPosition.z + direction * 0.1));
+
+        setObserverPosition({ ...observerPosition, z });
+    };
+
+    const applyOffset = (position) => {
+        return { ...position, x: position.x - dragOffset.x, y: position.y - dragOffset.y };
+    };
+
     return (
         <>
             <div
                 style={{
-                    border: "1px solid black",
                     width: `${gridSizePixels.x}px`,
                     height: `${gridSizePixels.y}px`,
                     cursor: mouseDown ? "grabbing" : "grab",
+                    overflow: "hidden",
                 }}
                 onMouseDown={(event) => setMouseDown({ x: event.pageX, y: event.pageY })}
                 onMouseUp={() => {
-                    setNodePositions(
+                    /*setNodePositions(
                         nodePositions.map((p) => ({
                             ...p,
                             x: p.x + dragOffset.x,
@@ -172,21 +225,24 @@ export function Graph(props) {
                         edges.map((e) => ({
                             ...e,
                             x: e.x + dragOffset.x,
-                            y: e.y + dragOffset.y,
+                            y: e.y + dragffset.y,
                         })),
-                    );
+                    );*/
+
+                    setObserverPosition(applyOffset(observerPosition));
 
                     setMouseDown(null);
                     setDragOffset({ x: 0, y: 0 });
                 }}
                 onMouseMove={onMouseMove}
+                onWheel={handleWheel}
             >
                 {nodePositions.map((position, index) => (
                     <Node
                         key={index}
                         nodeKey={index}
                         position={{ x: position.x, y: position.y }}
-                        offset={{ x: dragOffset.x, y: dragOffset.y }}
+                        observerPosition={applyOffset(observerPosition)}
                         focusCallback={{
                             enter: (key) => {
                                 setFocusKey(key);
@@ -198,12 +254,22 @@ export function Graph(props) {
                     />
                 ))}
                 {edges.map((e) => {
+                    const edgePosition = calculateScalePosition(
+                        {
+                            x: e.x,
+                            y: e.y,
+                        },
+                        applyOffset(observerPosition),
+                    );
+
+                    // can we explain the math in `transform: translate(...)` ???
+                    // why can't this be taken care of in `calculateScalePosition`
                     return (
                         <div
                             style={{
                                 zIndex: "1",
                                 transformOrigin: "top left",
-                                transform: `translate(${e.x + dragOffset.x + NODE_DIAMETER / 2}px, ${e.y + dragOffset.y + NODE_DIAMETER / 2}px) rotate(${e.angle}deg)`,
+                                transform: `scale(${1 / observerPosition.z}) translate(${(edgePosition.x + NODE_DIAMETER / 2) * observerPosition.z}px, ${(edgePosition.y + NODE_DIAMETER / 2) * observerPosition.z}px) rotate(${e.angle}deg)`,
                                 width: `${e.length}px`,
                                 height: "2px",
                                 left: "0",
@@ -220,7 +286,6 @@ export function Graph(props) {
                     );
                 })}
             </div>
-            <button onClick={regenerate}>regen</button>
         </>
     );
 }
