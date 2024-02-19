@@ -35,6 +35,10 @@ function useViewportSize() {
     return size;
 }
 
+function stopPropagation(event) {
+    event.stopPropagation();
+}
+
 function Node(props) {
     const [position, setPosition] = useState({ x: 0, y: 0 });
 
@@ -46,10 +50,6 @@ function Node(props) {
 
         setPosition(scaledPosition);
     }, [props.position]);
-
-    const stopPropagation = (event) => {
-        event.stopPropagation();
-    };
 
     return (
         <div
@@ -81,13 +81,16 @@ export function Hotbar() {
     const height = 4; // vh
     const borderRadius = "15px";
 
+    const newNoteHotbarRatio = 0.4;
+    const openHeight = 30; // vh
+    const textareaMargin = 1; // rem
+
     const [open, setOpen] = useState(false);
 
     return (
         <div
             style={{
                 position: "fixed",
-                border: "1px solid #ddd",
                 borderRadius: borderRadius,
                 left: `${(100 - width) / 2}vw`,
                 top: `${height / 2}vh`,
@@ -96,33 +99,74 @@ export function Hotbar() {
                 backgroundColor: "white",
                 boxShadow: "0px 2px 8px rgba(128, 128, 128, 0.2)",
                 display: "flex",
-                alignItems: "center",
                 zIndex: 10,
             }}
-            className="hotbar"
+            className={"hotbar" + (open ? " hotbarHover" : "")}
         >
             <div
                 style={{
-                    height: "100%",
-                    borderRadius: borderRadius,
                     cursor: "pointer",
                     zIndex: 11,
-                    border: "1px solid #bbb",
                     userSelect: "none",
+                    overflow: "hidden",
+                    borderRadius: borderRadius,
+                    display: "flex",
+                    flexDirection: "column",
+                    transition: "all 0.5s",
+                    backgroundColor: "white",
+                    width: open ? `${newNoteHotbarRatio * 100}%` : `${height}vh`,
+                    height: open ? `${openHeight}vh` : `${height}vh`,
+                    border: open ? "1px solid #bbb" : "",
                 }}
-                className="newNote"
+                className={"newNote" + (open ? " newNoteHover" : "")}
                 onClick={() => setOpen(!open)}
             >
-                <img
-                    src="/newnote.png"
+                <div style={{ display: "flex", alignItems: "center" }}>
+                    <img
+                        src="/newnote.png"
+                        style={{
+                            maxWidth: "100%",
+                            width: "auto",
+                            height: `${height}vh`,
+                            objectFit: "cover",
+                            display: "block",
+                            flexGrow: "0",
+                            borderRadius: borderRadius,
+                        }}
+                    />
+                    <span
+                        style={{
+                            flexGrow: "1",
+                            textWrap: "nowrap",
+                            opacity: open ? 1 : 0,
+                            transition: "all 0.5s",
+                        }}
+                    >
+                        Create a new note
+                    </span>
+                </div>
+
+                <textarea
+                    id="newNoteInput"
+                    placeholder="Shift + Enter for line break"
+                    onClick={stopPropagation}
                     style={{
-                        maxWidth: "100%",
-                        maxHeight: "100%",
-                        width: "auto",
-                        height: "auto",
-                        objectFit: "cover",
-                        display: "block",
-                        borderRadius: borderRadius,
+                        outline: "0",
+                        border: "0",
+                        padding: "0",
+                        transition: "all 0.5s",
+                        opacity: open ? 1 : 0,
+                        fontSize: "16px",
+                        width: `calc(${width * newNoteHotbarRatio}vw - ${2 * textareaMargin}rem)`,
+                        height: `calc(${openHeight}vh - ${2 * textareaMargin}rem)`,
+                        margin: `${textareaMargin}rem`,
+                        resize: "none",
+                    }}
+                    onKeyDown={(event) => {
+                        if (event.key === "Enter" && !event.shiftKey) {
+                            event.preventDefault();
+                            console.log("todo: note submission");
+                        }
                     }}
                 />
             </div>

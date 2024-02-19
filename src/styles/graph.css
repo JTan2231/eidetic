@@ -1,3 +1,12 @@
+@font-face {
+    font-family: 'mononoki-Regular';
+    src: url('../assets/fonts/mononoki-Regular.woff2') format('woff2');
+}
+
+html * {
+    font-family: 'mononoki-Regular', monospace;
+}
+
 .node {
     border-radius: 50%;
     background-color: #444;
@@ -6,6 +15,10 @@
 .hotbar {
     opacity: 0.6;
     transition: opacity 0.4s;
+}
+
+.hotbarHover {
+    opacity: 1;
 }
 
 .hotbar:hover {
@@ -18,9 +31,16 @@
 
 .newNote {
     opacity: 0.6;
-    transition: opacity 0.4s;
+    border: 1px solid white;
+    transition: opacity 0.4s, border 0.4s;
+}
+
+.newNoteHover {
+    opacity: 1;
+    border: 1px solid #bbb;
 }
 
 .newNote:hover {
     opacity: 1;
+    border: 1px solid #bbb;
 }
