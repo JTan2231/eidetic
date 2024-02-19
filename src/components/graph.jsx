@@ -9,7 +9,7 @@ function getRandom(max) {
 }
 
 function coinFlip() {
-    return Math.random() > 0;
+    return Math.random() > 0.2;
 }
 
 function calculateScalePosition(elementPosition, observerPosition) {
@@ -73,6 +73,78 @@ function Node(props) {
             onMouseEnter={() => props.focusCallback.enter(props.nodeKey)}
             onMouseLeave={props.focusCallback.exit}
         />
+    );
+}
+
+export function Hotbar() {
+    const width = 60; // vw
+    const height = 4; // vh
+    const borderRadius = "15px";
+
+    const [open, setOpen] = useState(false);
+
+    return (
+        <div
+            style={{
+                position: "fixed",
+                border: "1px solid #ddd",
+                borderRadius: borderRadius,
+                left: `${(100 - width) / 2}vw`,
+                top: `${height / 2}vh`,
+                width: `${width}vw`,
+                height: `${height}vh`,
+                backgroundColor: "white",
+                boxShadow: "0px 2px 8px rgba(128, 128, 128, 0.2)",
+                display: "flex",
+                alignItems: "center",
+                zIndex: 10,
+            }}
+            className="hotbar"
+        >
+            <div
+                style={{
+                    height: "100%",
+                    borderRadius: borderRadius,
+                    cursor: "pointer",
+                    zIndex: 11,
+                    border: "1px solid #bbb",
+                    userSelect: "none",
+                }}
+                className="newNote"
+                onClick={() => setOpen(!open)}
+            >
+                <img
+                    src="/newnote.png"
+                    style={{
+                        maxWidth: "100%",
+                        maxHeight: "100%",
+                        width: "auto",
+                        height: "auto",
+                        objectFit: "cover",
+                        display: "block",
+                        borderRadius: borderRadius,
+                    }}
+                />
+            </div>
+            <div
+                style={{
+                    width: "30%",
+                    height: "100%",
+                    cursor: "text",
+                    borderRadius: borderRadius,
+                    display: "flex",
+                    alignItems: "center",
+                }}
+                onClick={() => document.getElementById("searchInput").focus()}
+            >
+                <input
+                    id="searchInput"
+                    type="text"
+                    placeholder="Search"
+                    style={{ marginLeft: "1rem", width: "100%", outline: "0", border: "0" }}
+                />
+            </div>
+        </div>
     );
 }
 
