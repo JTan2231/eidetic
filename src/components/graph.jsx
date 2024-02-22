@@ -1,8 +1,12 @@
 import { useState, useEffect } from "react";
 import "../styles/graph.css";
 
-const NODE_DIAMETER = 50;
+const NODE_DIAMETER = 100;
 const UNFOCUSED_OPACITY = 0.15;
+
+const API_URL = "http://localhost:5000/";
+
+const TRANSLUSCENT_WHITE = "rgba(255, 255, 255, 0.95)";
 
 function getRandom(max) {
     return Math.random() * max;
@@ -51,28 +55,58 @@ function Node(props) {
         setPosition(scaledPosition);
     }, [props.position]);
 
+    const unopenedStyle = {
+        position: "absolute",
+        left: `${position.x}px`,
+        top: `${position.y}px`,
+        width: `${NODE_DIAMETER}px`,
+        height: `${NODE_DIAMETER}px`,
+        zIndex: 2,
+        cursor: "pointer",
+        border: "1px solid #444",
+        borderRadius: "12px",
+        backgroundColor: "white",
+        userSelect: "none",
+        opacity: `${props.focused || props.highlighted ? 1 : UNFOCUSED_OPACITY}`,
+        transform: `scale(${(1 / props.observerPosition.z) * (props.focused ? 1.25 : 1)})`,
+        transformOrigin: "center",
+        transition: "transform 0.3s, opacity 0.3s",
+        overflow: "hidden",
+        padding: "0.5rem",
+        textOverflow: "ellipsis",
+    };
+
+    const openedStyle = {
+        position: "absolute",
+        left: "50%",
+        top: "50%",
+        transform: "translate(-50%, -50%)",
+        width: `30vw`,
+        height: `30vh`,
+        zIndex: 999,
+        border: "1px solid #444",
+        borderRadius: "12px",
+        backgroundColor: "white",
+        userSelect: "none",
+        padding: "2rem",
+        cursor: "default",
+    };
+
     return (
         <div
-            className="node"
-            style={{
-                position: "absolute",
-                left: `${position.x}px`,
-                top: `${position.y}px`,
-                width: `${NODE_DIAMETER}px`,
-                height: `${NODE_DIAMETER}px`,
-                zIndex: "2",
-                cursor: "pointer",
-                opacity: `${props.focused || props.highlighted ? 1 : UNFOCUSED_OPACITY}`,
-                transform: `scale(${(1 / props.observerPosition.z) * (props.focused ? 1.25 : 1)})`,
-                transformOrigin: "center",
-                transition: "transform 0.3s, opacity 0.3s",
-            }}
+            style={props.isOpen ? openedStyle : unopenedStyle}
             onMouseDown={stopPropagation}
             onMouseUp={stopPropagation}
             onMouseMove={stopPropagation}
-            onMouseEnter={() => props.focusCallback.enter(props.nodeKey)}
-            onMouseLeave={props.focusCallback.exit}
-        />
+            onMouseEnter={props.isOpen ? undefined : () => props.focusCallback.enter(props.nodeKey)}
+            onMouseLeave={props.isOpen ? undefined : props.focusCallback.exit}
+            onClick={() => {
+                props.focusCallback.exit();
+                props.nodeClickCallback();
+            }}
+        >
+            {props.content}
+        </div>
     );
 }
 
@@ -81,114 +115,180 @@ export function Hotbar() {
     const height = 4; // vh
     const borderRadius = "15px";
 
+    const transitionSpeed = 0.4; // s
+
     const newNoteHotbarRatio = 0.4;
     const openHeight = 30; // vh
     const textareaMargin = 1; // rem
 
     const [open, setOpen] = useState(false);
+    const [modalShowing, setModalShowing] = useState(false);
+
+    const modalSuccess = <span>Note added successfully</span>;
+    const modalFailure = <span>Failed to add note</span>;
+
+    const [modalMessage, setModalMessage] = useState(modalSuccess);
 
     return (
-        <div
-            style={{
-                position: "fixed",
-                borderRadius: borderRadius,
-                left: `${(100 - width) / 2}vw`,
-                top: `${height / 2}vh`,
-                width: `${width}vw`,
-                height: `${height}vh`,
-                backgroundColor: "white",
-                boxShadow: "0px 2px 8px rgba(128, 128, 128, 0.2)",
-                display: "flex",
-                zIndex: 10,
-            }}
-            className={"hotbar" + (open ? " hotbarHover" : "")}
-        >
+        <>
             <div
                 style={{
-                    cursor: "pointer",
-                    zIndex: 11,
-                    userSelect: "none",
-                    overflow: "hidden",
+                    position: "fixed",
                     borderRadius: borderRadius,
+                    left: `${(100 - width) / 2}vw`,
+                    top: `${height / 2}vh`,
+                    width: `${width}vw`,
+                    height: `${height}vh`,
+                    backgroundColor: TRANSLUSCENT_WHITE,
+                    boxShadow: "0px 2px 8px rgba(128, 128, 128, 0.2)",
                     display: "flex",
-                    flexDirection: "column",
-                    transition: "all 0.5s",
-                    backgroundColor: "white",
-                    width: open ? `${newNoteHotbarRatio * 100}%` : `${height}vh`,
-                    height: open ? `${openHeight}vh` : `${height}vh`,
-                    border: open ? "1px solid #bbb" : "",
+                    zIndex: 10,
                 }}
-                className={"newNote" + (open ? " newNoteHover" : "")}
-                onClick={() => setOpen(!open)}
+                className={"hotbar" + (open ? " hotbarHover" : "")}
             >
-                <div style={{ display: "flex", alignItems: "center" }}>
-                    <img
-                        src="/newnote.png"
+                <div
+                    style={{
+                        cursor: "pointer",
+                        zIndex: 11,
+                        userSelect: "none",
+                        overflow: "hidden",
+                        borderRadius: borderRadius,
+                        display: "flex",
+                        flexDirection: "column",
+                        transition: `all ${transitionSpeed}s`,
+                        backgroundColor: TRANSLUSCENT_WHITE,
+                        width: open ? `${newNoteHotbarRatio * 100}%` : `${height}vh`,
+                        height: open ? `${openHeight}vh` : `${height}vh`,
+                        border: open ? "1px solid #bbb" : "",
+                    }}
+                    className={"newNote" + (open ? " newNoteHover" : "")}
+                    onClick={() => setOpen(!open)}
+                >
+                    <div style={{ display: "flex", alignItems: "center" }}>
+                        <img
+                            src="/newnote.png"
+                            style={{
+                                maxWidth: "100%",
+                                width: "auto",
+                                height: `${height}vh`,
+                                objectFit: "cover",
+                                display: "block",
+                                flexGrow: "0",
+                                borderRadius: borderRadius,
+                            }}
+                        />
+                        <span
+                            style={{
+                                flexGrow: "1",
+                                textWrap: "nowrap",
+                                opacity: open ? 1 : 0,
+                                transition: "all 0.5s",
+                            }}
+                        >
+                            Create a new note
+                        </span>
+                    </div>
+
+                    <textarea
+                        id="newNoteInput"
+                        placeholder="Shift + Enter for line break"
+                        onClick={stopPropagation}
                         style={{
-                            maxWidth: "100%",
-                            width: "auto",
-                            height: `${height}vh`,
-                            objectFit: "cover",
-                            display: "block",
-                            flexGrow: "0",
-                            borderRadius: borderRadius,
+                            outline: "0",
+                            border: "0",
+                            padding: "0",
+                            transition: `all ${transitionSpeed}s`,
+                            opacity: open ? 1 : 0,
+                            fontSize: "16px",
+                            width: `calc(${width * newNoteHotbarRatio}vw - ${2 * textareaMargin}rem)`,
+                            height: `calc(${openHeight}vh - ${2 * textareaMargin}rem)`,
+                            margin: `${textareaMargin}rem`,
+                            resize: "none",
+                            backgroundColor: "rgba(255, 255, 255, 0)",
+                        }}
+                        onKeyDown={(event) => {
+                            if (event.key === "Enter" && !event.shiftKey) {
+                                event.preventDefault();
+                                setModalShowing(true);
+
+                                fetch(`${API_URL}add-note`, {
+                                    method: "POST",
+                                    headers: {
+                                        "Content-Type": "application/json",
+                                        "Access-Control-Allow-Origin": "http://localhost:3000",
+                                    },
+                                    body: JSON.stringify({
+                                        content: document.getElementById("newNoteInput").value,
+                                    }),
+                                })
+                                    // TODO: failure modal
+                                    .then((res) => {
+                                        if (res.status === 201) {
+                                            // success modal
+
+                                            setTimeout(() => {
+                                                setModalShowing(false);
+                                            }, 3000);
+                                            setOpen(false);
+                                        }
+                                    })
+                                    .catch(() => setModalMessage(modalFailure));
+                            }
                         }}
                     />
-                    <span
-                        style={{
-                            flexGrow: "1",
-                            textWrap: "nowrap",
-                            opacity: open ? 1 : 0,
-                            transition: "all 0.5s",
-                        }}
-                    >
-                        Create a new note
-                    </span>
                 </div>
-
-                <textarea
-                    id="newNoteInput"
-                    placeholder="Shift + Enter for line break"
-                    onClick={stopPropagation}
+                <div
                     style={{
-                        outline: "0",
-                        border: "0",
-                        padding: "0",
-                        transition: "all 0.5s",
-                        opacity: open ? 1 : 0,
-                        fontSize: "16px",
-                        width: `calc(${width * newNoteHotbarRatio}vw - ${2 * textareaMargin}rem)`,
-                        height: `calc(${openHeight}vh - ${2 * textareaMargin}rem)`,
-                        margin: `${textareaMargin}rem`,
-                        resize: "none",
+                        width: "30%",
+                        height: "100%",
+                        cursor: "text",
+                        borderRadius: borderRadius,
+                        display: "flex",
+                        alignItems: "center",
                     }}
-                    onKeyDown={(event) => {
-                        if (event.key === "Enter" && !event.shiftKey) {
-                            event.preventDefault();
-                            console.log("todo: note submission");
-                        }
-                    }}
-                />
+                    onClick={() => document.getElementById("searchInput").focus()}
+                >
+                    <input
+                        id="searchInput"
+                        type="text"
+                        placeholder="Search"
+                        style={{
+                            marginLeft: "1rem",
+                            width: "100%",
+                            height: "100%",
+                            outline: "0",
+                            border: "0",
+                            backgroundColor: "rgba(255, 255, 255, 0)",
+                        }}
+                    />
+                </div>
             </div>
             <div
                 style={{
-                    width: "30%",
-                    height: "100%",
-                    cursor: "text",
+                    display: "block",
+                    position: "fixed",
+                    left: "50%",
+                    transform: "translateX(-50%)",
+                    top: `${2 * height}vh`,
+                    border: "1px solid black",
                     borderRadius: borderRadius,
-                    display: "flex",
-                    alignItems: "center",
+                    zIndex: modalShowing ? 10 : -1,
+                    backgroundColor: TRANSLUSCENT_WHITE,
+                    padding: "0.5rem 0.5rem",
+                    userSelect: "none",
+                    opacity: modalShowing ? 1 : 0,
+                    transition: `all ${transitionSpeed}s`,
                 }}
-                onClick={() => document.getElementById("searchInput").focus()}
             >
-                <input
-                    id="searchInput"
-                    type="text"
-                    placeholder="Search"
-                    style={{ marginLeft: "1rem", width: "100%", outline: "0", border: "0" }}
-                />
+                <span
+                    style={{ margin: "0 1rem 0 0", cursor: "pointer" }}
+                    onClick={() => setModalShowing(false)}
+                >
+                    X
+                </span>
+                {modalMessage}
             </div>
-        </div>
+        </>
     );
 }
 
@@ -199,6 +299,7 @@ export function Graph(props) {
     const [edgeMap, setEdgeMap] = useState({});
 
     const [focusKey, setFocusKey] = useState(-1);
+    const [openNode, setOpenNode] = useState(-1);
 
     const [mouseDown, setMouseDown] = useState(null);
     const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
@@ -239,7 +340,7 @@ export function Graph(props) {
     };
 
     // list of nodes with random positions
-    const regenerate = () => {
+    const regenerateNodes = (notes) => {
         for (let x = 0; x < occupancyGrid.length; x++) {
             for (let y = 0; y < occupancyGrid[x].length; y++) {
                 occupancyGrid[x][y] = false;
@@ -247,9 +348,10 @@ export function Graph(props) {
         }
 
         let newNodes = [];
-        for (let i = 0; i < props.count; i++) {
+        for (let i = 0; i < notes.length; i++) {
             let candidate = {
                 key: i,
+                content: notes[i].content,
                 x: getRandom(gridSizePixels.x),
                 y: getRandom(gridSizePixels.y),
             };
@@ -295,7 +397,17 @@ export function Graph(props) {
     };
 
     useEffect(() => {
-        regenerate();
+        fetch(`${API_URL}get-notes?user_id=${1}`, {
+            method: "GET",
+            headers: {
+                "Content-Type": "application/json",
+            },
+        })
+            .then((res) => res.json())
+            .then((data) => {
+                regenerateNodes(data);
+            })
+            .catch(() => console.log("whatever"));
     }, [props.count]);
 
     const onMouseMove = (event) => {
@@ -306,9 +418,7 @@ export function Graph(props) {
     };
 
     const handleWheel = (event) => {
-        console.log("scroll", event);
         const direction = event.deltaY > 0 ? 1 : -1;
-
         const z = Math.max(0.2, Math.min(2, observerPosition.z + direction * 0.1));
 
         setObserverPosition({ ...observerPosition, z });
@@ -322,6 +432,17 @@ export function Graph(props) {
         <>
             <div
                 style={{
+                    backgroundColor: "rgba(128, 128, 128, 0.4)",
+                    position: "fixed",
+                    width: "100vw",
+                    height: "100vh",
+                    display: openNode !== -1 ? "block" : "none",
+                    zIndex: 998,
+                }}
+                onClick={() => setOpenNode(-1)}
+            />
+            <div
+                style={{
                     width: `${gridSizePixels.x}px`,
                     height: `${gridSizePixels.y}px`,
                     cursor: mouseDown ? "grabbing" : "grab",
@@ -329,22 +450,6 @@ export function Graph(props) {
                 }}
                 onMouseDown={(event) => setMouseDown({ x: event.pageX, y: event.pageY })}
                 onMouseUp={() => {
-                    /*setNodePositions(
-                        nodePositions.map((p) => ({
-                            ...p,
-                            x: p.x + dragOffset.x,
-                            y: p.y + dragOffset.y,
-                        })),
-                    );
-
-                    setEdges(
-                        edges.map((e) => ({
-                            ...e,
-                            x: e.x + dragOffset.x,
-                            y: e.y + dragffset.y,
-                        })),
-                    );*/
-
                     setObserverPosition(applyOffset(observerPosition));
 
                     setMouseDown(null);
@@ -357,7 +462,10 @@ export function Graph(props) {
                     <Node
                         key={index}
                         nodeKey={index}
+                        isOpen={index === openNode}
+                        nodeClickCallback={() => setOpenNode(index)}
                         position={{ x: position.x, y: position.y }}
+                        content={position.content}
                         observerPosition={applyOffset(observerPosition)}
                         focusCallback={{
                             enter: (key) => {
