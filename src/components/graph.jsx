@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import "../styles/graph.css";
 
-const NODE_DIAMETER = 100;
+const NODE_DIAMETER = 50;
 const UNFOCUSED_OPACITY = 0.15;
 
 const API_URL = "http://localhost:5000/";
@@ -13,7 +13,7 @@ function getRandom(max) {
 }
 
 function coinFlip() {
-    return Math.random() > 0.2;
+    return Math.random() > 0.999;
 }
 
 function calculateScalePosition(elementPosition, observerPosition) {
@@ -68,9 +68,9 @@ function Node(props) {
         backgroundColor: "white",
         userSelect: "none",
         opacity: `${props.focused || props.highlighted ? 1 : UNFOCUSED_OPACITY}`,
-        transform: `scale(${(1 / props.observerPosition.z) * (props.focused ? 1.25 : 1)})`,
-        transformOrigin: "center",
-        transition: "transform 0.3s, opacity 0.3s",
+        //transform: `scale(${(1 / props.observerPosition.z) * (props.focused ? 1.25 : 1)})`,
+        //transformOrigin: "center",
+        transition: "opacity 0.3s",
         overflow: "hidden",
         padding: "0.5rem",
         textOverflow: "ellipsis",
@@ -110,7 +110,7 @@ function Node(props) {
     );
 }
 
-export function Hotbar() {
+export function Hotbar(props) {
     const width = 60; // vw
     const height = 4; // vh
     const borderRadius = "15px";
@@ -229,7 +229,11 @@ export function Hotbar() {
                                             setTimeout(() => {
                                                 setModalShowing(false);
                                             }, 3000);
+
+                                            document.getElementById("newNoteInput").value = "";
                                             setOpen(false);
+
+                                            props.refreshNodes();
                                         }
                                     })
                                     .catch(() => setModalMessage(modalFailure));
@@ -245,6 +249,7 @@ export function Hotbar() {
                         borderRadius: borderRadius,
                         display: "flex",
                         alignItems: "center",
+                        flexGrow: 1,
                     }}
                     onClick={() => document.getElementById("searchInput").focus()}
                 >
@@ -252,6 +257,7 @@ export function Hotbar() {
                         id="searchInput"
                         type="text"
                         placeholder="Search"
+                        onChange={(event) => props.searchCallback(event.target.value)}
                         style={{
                             marginLeft: "1rem",
                             width: "100%",
@@ -298,6 +304,8 @@ export function Graph(props) {
     const [edges, setEdges] = useState([]);
     const [edgeMap, setEdgeMap] = useState({});
 
+    const [searchQuery, setSearchQuery] = useState("");
+
     const [focusKey, setFocusKey] = useState(-1);
     const [openNode, setOpenNode] = useState(-1);
 
@@ -311,6 +319,21 @@ export function Graph(props) {
         y: 0,
         z: 1,
     });
+
+    const refreshNodes = () => {
+        fetch(`${API_URL}get-notes?user_id=${2}`, {
+            method: "GET",
+            headers: {
+                "Content-Type": "application/json",
+            },
+        })
+            .then((res) => res.json())
+            .then((data) => {
+                console.log(data);
+                regenerateNodes(data);
+            })
+            .catch(() => console.log("whatever"));
+    };
 
     // grid sizes
     const gridSquareSize = { x: 100, y: 100 };
@@ -333,12 +356,6 @@ export function Graph(props) {
         occupancyGrid[i] = new Array(gridSize.y).fill(false);
     }
 
-    // { ...position, x: number (pixels), y: number (pixels) }
-    const isOccupied = (position) => {
-        const [x, y] = pixelsToGrid(position);
-        return occupancyGrid[x][y];
-    };
-
     // list of nodes with random positions
     const regenerateNodes = (notes) => {
         for (let x = 0; x < occupancyGrid.length; x++) {
@@ -352,16 +369,9 @@ export function Graph(props) {
             let candidate = {
                 key: i,
                 content: notes[i].content,
-                x: getRandom(gridSizePixels.x),
-                y: getRandom(gridSizePixels.y),
+                x: (notes[i].position[0] / 100) * gridSizePixels.x,
+                y: (notes[i].position[1] / 100) * gridSizePixels.y,
             };
-            while (isOccupied(candidate)) {
-                candidate = {
-                    ...candidate,
-                    x: getRandom(gridSizePixels.x),
-                    y: getRandom(gridSizePixels.y),
-                };
-            }
 
             const [x, y] = pixelsToGrid(candidate);
             occupancyGrid[x][y] = true;
@@ -397,17 +407,7 @@ export function Graph(props) {
     };
 
     useEffect(() => {
-        fetch(`${API_URL}get-notes?user_id=${1}`, {
-            method: "GET",
-            headers: {
-                "Content-Type": "application/json",
-            },
-        })
-            .then((res) => res.json())
-            .then((data) => {
-                regenerateNodes(data);
-            })
-            .catch(() => console.log("whatever"));
+        refreshNodes();
     }, [props.count]);
 
     const onMouseMove = (event) => {
@@ -428,8 +428,36 @@ export function Graph(props) {
         return { ...position, x: position.x - dragOffset.x, y: position.y - dragOffset.y };
     };
 
+    const determineHighlighted = (position, index) => {
+        if (searchQuery.length > 0) {
+            return position.content.toLowerCase().includes(searchQuery.toLowerCase());
+        } else {
+            return focusKey === -1 || edgeMap[focusKey].includes(index);
+        }
+    };
+
     return (
         <>
+            <div style={{ position: "fixed", left: 0, top: 0 }}>
+                <input id="channelInput" type="text" />
+                <button
+                    onClick={() => {
+                        fetch(`${API_URL}import-channel`, {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json",
+                                "Access-Control-Allow-Origin": "http://localhost:3000",
+                            },
+                            body: JSON.stringify({
+                                channel: document.getElementById("channelInput").value,
+                            }),
+                        });
+                    }}
+                >
+                    import
+                </button>
+            </div>
+            <Hotbar refreshNodes={refreshNodes} searchCallback={setSearchQuery} />
             <div
                 style={{
                     backgroundColor: "rgba(128, 128, 128, 0.4)",
@@ -438,6 +466,7 @@ export function Graph(props) {
                     height: "100vh",
                     display: openNode !== -1 ? "block" : "none",
                     zIndex: 998,
+                    cursor: "pointer",
                 }}
                 onClick={() => setOpenNode(-1)}
             />
@@ -447,6 +476,7 @@ export function Graph(props) {
                     height: `${gridSizePixels.y}px`,
                     cursor: mouseDown ? "grabbing" : "grab",
                     overflow: "hidden",
+                    zIndex: mouseDown ? 100000 : 0,
                 }}
                 onMouseDown={(event) => setMouseDown({ x: event.pageX, y: event.pageY })}
                 onMouseUp={() => {
@@ -474,7 +504,7 @@ export function Graph(props) {
                             exit: () => setFocusKey(-1),
                         }}
                         focused={index === focusKey}
-                        highlighted={focusKey === -1 || edgeMap[focusKey].includes(index)}
+                        highlighted={determineHighlighted(position, index)}
                     />
                 ))}
                 {edges.map((e) => {
@@ -499,7 +529,8 @@ export function Graph(props) {
                                 left: "0",
                                 top: "0",
                                 opacity:
-                                    e.from === focusKey || focusKey === -1
+                                    (e.from === focusKey || focusKey === -1) &&
+                                    searchQuery.length === 0
                                         ? "1"
                                         : `${UNFOCUSED_OPACITY}`,
                                 position: "absolute",
