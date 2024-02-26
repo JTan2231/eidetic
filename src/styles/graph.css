@@ -7,23 +7,6 @@ html * {
     font-family: 'mononoki-Regular', monospace;
 }
 
-.hotbar {
-    opacity: 0.6;
-    transition: opacity 0.4s;
-}
-
-.hotbarHover {
-    opacity: 1;
-}
-
-.hotbar:hover {
-    opacity: 1;
-}
-
-.hotbar:focus-within {
-    opacity: 1;
-}
-
 .newNote {
     opacity: 0.6;
     border: 1px solid white;

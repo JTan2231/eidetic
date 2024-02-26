@@ -7,8 +7,4 @@ document.body.style.margin = "0";
 document.body.style.overflow = "hidden";
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
-root.render(
-    <React.StrictMode>
-        <Graph count={5} />
-    </React.StrictMode>,
-);
+root.render(<Graph count={5} />);
