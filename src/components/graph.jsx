@@ -8,14 +8,6 @@ const API_URL = "http://localhost:5000/";
 
 const TRANSLUSCENT_WHITE = "rgba(255, 255, 255, 0.95)";
 
-function getRandom(max) {
-    return Math.random() * max;
-}
-
-function coinFlip() {
-    return Math.random() > 0.999;
-}
-
 function calculateScalePosition(elementPosition, observerPosition) {
     return {
         x: (elementPosition.x - observerPosition.x) / observerPosition.z,
@@ -46,7 +38,7 @@ function stopPropagation(event) {
 export function Hotbar(props) {
     const width = 60; // vw
     const height = 4; // vh
-    const borderRadius = "15px";
+    const borderRadius = "0px";
 
     const transitionSpeed = 0.4; // s
 
@@ -62,8 +54,30 @@ export function Hotbar(props) {
 
     const [modalMessage, setModalMessage] = useState(modalSuccess);
 
+    const [searchIsEmpty, setSearchIsEmpty] = useState(false);
+    const [somethingSearched, setSomethingSearched] = useState(false);
+    const [backdropOpacity, setBackdropOpacity] = useState(0);
+    const [backdropZIndex, setBackdropZIndex] = useState(-1);
+
     return (
         <>
+            <div
+                style={{
+                    position: "fixed",
+                    zIndex: backdropZIndex,
+                    backgroundColor: TRANSLUSCENT_WHITE,
+                    width: "100vw",
+                    height: "100vh",
+                    transition: "opacity 0.5s",
+                    opacity: backdropOpacity,
+                }}
+                onTransitionEnd={(e) => {
+                    if (searchIsEmpty) {
+                        setBackdropOpacity(0);
+                        setBackdropZIndex(-1);
+                    }
+                }}
+            />
             <div
                 style={{
                     position: "fixed",
@@ -92,6 +106,7 @@ export function Hotbar(props) {
                         width: open ? `${newNoteHotbarRatio * 100}%` : `${height}vh`,
                         height: open ? `${openHeight}vh` : `${height}vh`,
                         border: open ? "1px solid #bbb" : "",
+                        flexShrink: "0",
                     }}
                     className={"newNote" + (open ? " newNoteHover" : "")}
                     onClick={() => setOpen(!open)}
@@ -183,6 +198,7 @@ export function Hotbar(props) {
                         flexGrow: 1,
                         overflow: "none",
                         maxWidth: "100%",
+                        height: "fit-content",
                     }}
                     onClick={() => document.getElementById("searchInput").focus()}
                 >
@@ -190,27 +206,43 @@ export function Hotbar(props) {
                         id="searchInput"
                         type="text"
                         placeholder="Search"
-                        onChange={(event) => props.searchCallback(event.target.value)}
+                        onChange={(event) => {
+                            const empty = event.target.value.length === 0;
+                            setSearchIsEmpty(empty);
+                            setSomethingSearched(Math.max(somethingSearched, !empty) === 1);
+                            setBackdropZIndex(somethingSearched ? 9 : -1);
+                            setBackdropOpacity(empty ? 0 : 0.9);
+                            props.searchCallback(event.target.value);
+                        }}
                         style={{
                             marginLeft: "1rem",
                             width: "100%",
-                            minHeight: "100%",
+                            minHeight: `${height}vh`,
                             outline: "0",
                             border: "0",
                             backgroundColor: "rgba(255, 255, 255, 0)",
                         }}
                     />
                     <div
+                        className="hideScrollbar"
                         style={{
-                            maxWidth: "100%",
-                            backgroundColor: TRANSLUSCENT_WHITE,
+                            maxWidth: `calc(100% - ${height}vh)`,
+                            backgroundColor: searchIsEmpty ? "transparent" : TRANSLUSCENT_WHITE,
+                            color: searchIsEmpty ? "transparent" : "black",
                             borderRadius: borderRadius,
                             display: "flex",
                             flexDirection: "column",
+                            transition:
+                                "height 0.5s, border 0.5s, background-color 0.5s, color 0.5s",
+                            height: searchIsEmpty ? "0" : `calc(10 * ${height}vh + 9px)`,
+                            border: searchIsEmpty ? "1px solid transparent" : "1px solid #ddd",
+                            overflowX: "hidden",
+                            overflowY: "scroll",
                         }}
                     >
                         {props.filteredContent.map((c) => (
                             <div
+                                className="searchItem"
                                 style={{
                                     padding: "0.75rem 1rem",
                                     whiteSpace: "nowrap",
@@ -218,6 +250,9 @@ export function Hotbar(props) {
                                     textOverflow: "ellipsis",
                                     minWidth: 0,
                                     borderBottom: "1px solid #ddd",
+                                    cursor: "pointer",
+                                    userSelect: "none",
+                                    flexShrink: "0",
                                 }}
                             >
                                 {c}
@@ -452,7 +487,6 @@ export function Graph(props) {
                         zIndex: mouseDown ? -1 : 2,
                         cursor: "pointer",
                         border: "1px solid #444",
-                        borderRadius: "12px",
                         backgroundColor: "white",
                         userSelect: "none",
                         opacity: `${position.key === focusKey || determineHighlighted(position, position.key) ? 1 : UNFOCUSED_OPACITY}`,
@@ -472,7 +506,6 @@ export function Graph(props) {
                         height: `30vh`,
                         zIndex: 999,
                         border: "1px solid #444",
-                        borderRadius: "12px",
                         backgroundColor: "white",
                         userSelect: "none",
                         padding: "2rem",
