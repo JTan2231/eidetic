@@ -7,6 +7,9 @@ const UNFOCUSED_OPACITY = 0.15;
 const API_URL = "http://localhost:5000/";
 
 const TRANSLUSCENT_WHITE = "rgba(255, 255, 255, 0.95)";
+const OFF_WHITE = "rgb(255, 255, 250)";
+
+const BLACK = "#161616";
 
 function calculateScalePosition(elementPosition, observerPosition) {
     return {
@@ -46,7 +49,14 @@ export function Hotbar(props) {
     const openHeight = 30; // vh
     const textareaMargin = 1; // rem
 
-    const [open, setOpen] = useState(false);
+    const shadow = "";
+
+    const [open, setOpen] = useState({
+        newNote: false,
+        search: true,
+        chat: false,
+    });
+
     const [modalShowing, setModalShowing] = useState(false);
 
     const modalSuccess = <span>Note added successfully</span>;
@@ -54,10 +64,80 @@ export function Hotbar(props) {
 
     const [modalMessage, setModalMessage] = useState(modalSuccess);
 
-    const [searchIsEmpty, setSearchIsEmpty] = useState(false);
+    const [searchIsEmpty, setSearchIsEmpty] = useState(true);
     const [somethingSearched, setSomethingSearched] = useState(false);
+
+    const [chatHistory, setChatHistory] = useState([
+        {
+            role: "system",
+            content:
+                "You are a helpful creative assistant who excels at drawing connections between seemingly disparate ideas.",
+        },
+    ]);
+
+    const [responseChunk, setResponseChunk] = useState("");
+
     const [backdropOpacity, setBackdropOpacity] = useState(0);
     const [backdropZIndex, setBackdropZIndex] = useState(-1);
+
+    const sendMessage = (e) => {
+        e.preventDefault();
+        const userInput = document.getElementById("chatInput").value;
+        const newHistory = [...chatHistory, { role: "user", content: userInput }];
+        setChatHistory(newHistory);
+        fetch("https://api.openai.com/v1/chat/completions", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${process.env.REACT_APP_OPENAI_API_KEY}`,
+            },
+            body: JSON.stringify({
+                model: "gpt-4",
+                messages: newHistory,
+                stream: true,
+            }),
+        })
+            .then((response) => {
+                const reader = response.body.getReader();
+                let decoder = new TextDecoder();
+                let buffer = "";
+
+                function processText(text) {
+                    buffer += text;
+                    let boundary = buffer.indexOf("\n\n");
+
+                    while (boundary !== -1) {
+                        let content = buffer.substring(0, boundary).trim();
+                        if (content.startsWith("data: ")) {
+                            const json = JSON.parse(content.substring(5));
+                            const messageChunk = json.choices[0].delta.content;
+                            if (messageChunk) {
+                                setResponseChunk((prev) => prev + messageChunk);
+                            }
+                        }
+
+                        buffer = buffer.substring(boundary + 2);
+                        boundary = buffer.indexOf("\n\n");
+                    }
+                }
+
+                return new ReadableStream({
+                    async start(controller) {
+                        while (true) {
+                            const { done, value } = await reader.read();
+                            if (done) {
+                                processText(decoder.decode()); // Process any remaining text
+                                controller.close();
+                                break;
+                            }
+                            const textChunk = decoder.decode(value, { stream: true });
+                            processText(textChunk);
+                        }
+                    },
+                });
+            })
+            .catch((err) => console.error(err));
+    };
 
     return (
         <>
@@ -71,7 +151,7 @@ export function Hotbar(props) {
                     transition: "opacity 0.5s",
                     opacity: backdropOpacity,
                 }}
-                onTransitionEnd={(e) => {
+                onTransitionEnd={() => {
                     if (searchIsEmpty) {
                         setBackdropOpacity(0);
                         setBackdropZIndex(-1);
@@ -86,8 +166,8 @@ export function Hotbar(props) {
                     top: `${height / 2}vh`,
                     width: `${width}vw`,
                     height: `${height}vh`,
-                    backgroundColor: TRANSLUSCENT_WHITE,
-                    boxShadow: "0px 2px 8px rgba(128, 128, 128, 0.2)",
+                    backgroundColor: OFF_WHITE,
+                    boxShadow: shadow,
                     display: "flex",
                     zIndex: 10,
                 }}
@@ -102,14 +182,20 @@ export function Hotbar(props) {
                         display: "flex",
                         flexDirection: "column",
                         transition: `all ${transitionSpeed}s`,
-                        backgroundColor: TRANSLUSCENT_WHITE,
-                        width: open ? `${newNoteHotbarRatio * 100}%` : `${height}vh`,
-                        height: open ? `${openHeight}vh` : `${height}vh`,
-                        border: open ? "1px solid #bbb" : "",
+                        backgroundColor: OFF_WHITE,
+                        width: open.newNote ? `${newNoteHotbarRatio * 100}%` : `${height}vh`,
+                        height: open.newNote ? `${openHeight}vh` : `${height}vh`,
+                        border: open.newNote ? "1px solid #bbb" : "",
                         flexShrink: "0",
+                        boxShadow: shadow,
                     }}
-                    className={"newNote" + (open ? " newNoteHover" : "")}
-                    onClick={() => setOpen(!open)}
+                    className={"newNote" + (open.newNote ? " newNoteHover" : "")}
+                    onClick={() =>
+                        setOpen({
+                            ...open,
+                            newNote: !open.newNote,
+                        })
+                    }
                 >
                     <div style={{ display: "flex", alignItems: "center" }}>
                         <img
@@ -128,7 +214,7 @@ export function Hotbar(props) {
                             style={{
                                 flexGrow: "1",
                                 textWrap: "nowrap",
-                                opacity: open ? 1 : 0,
+                                opacity: open.newNote ? 1 : 0,
                                 transition: "all 0.5s",
                             }}
                         >
@@ -145,7 +231,7 @@ export function Hotbar(props) {
                             border: "0",
                             padding: "0",
                             transition: `all ${transitionSpeed}s`,
-                            opacity: open ? 1 : 0,
+                            opacity: open.newNote ? 1 : 0,
                             fontSize: "16px",
                             width: `calc(${width * newNoteHotbarRatio}vw - ${2 * textareaMargin}rem)`,
                             height: `calc(${openHeight}vh - ${2 * textareaMargin}rem)`,
@@ -194,41 +280,173 @@ export function Hotbar(props) {
                         borderRadius: borderRadius,
                         display: "flex",
                         flexDirection: "column",
-                        alignItems: "center",
-                        flexGrow: 1,
+                        flex: open.chat ? "1 1 100%" : `0 0 ${height}vh`,
+                        transition: `flex-grow ${transitionSpeed}s, flex-basis ${transitionSpeed}s`,
+                        overflow: "none",
+                        maxWidth: "100%",
+                        height: "fit-content",
+                    }}
+                    onClick={() => document.getElementById("chatInput").focus()}
+                >
+                    <span style={{ display: "flex" }}>
+                        <span
+                            style={{
+                                cursor: "pointer",
+                                zIndex: 11,
+                                userSelect: "none",
+                                overflow: "hidden",
+                                borderRadius: borderRadius,
+                                display: "flex",
+                                flexDirection: "column",
+                                transition: `all ${transitionSpeed}s`,
+                                backgroundColor: OFF_WHITE,
+                                flexShrink: "0",
+                                boxShadow: shadow,
+                                justifyContent: "center",
+                            }}
+                            className="newNote"
+                            onClick={() =>
+                                setOpen({
+                                    newNote: false,
+                                    chat: true,
+                                    search: false,
+                                })
+                            }
+                        >
+                            <img
+                                src="/chat.png"
+                                style={{
+                                    maxWidth: "100%",
+                                    width: `${height}vh`,
+                                    objectFit: "cover",
+                                    display: "block",
+                                    flexGrow: "0",
+                                    borderRadius: borderRadius,
+                                }}
+                            />
+                        </span>
+                        <input
+                            id="chatInput"
+                            type="text"
+                            placeholder="Chat"
+                            style={{
+                                marginLeft: "1rem",
+                                width: "100%",
+                                minHeight: `${height}vh`,
+                                outline: "0",
+                                border: "0",
+                                backgroundColor: "transparent",
+                            }}
+                            onKeyDown={(event) => {
+                                if (event.key === "Enter") {
+                                    sendMessage(event);
+                                }
+                            }}
+                        />
+                    </span>
+                    <div
+                        className="hideScrollbar"
+                        style={{
+                            maxWidth: `calc(100% - ${height}vh - 2px)`,
+                            backgroundColor: chatHistory.length === 0 ? "transparent" : OFF_WHITE,
+                            color: chatHistory.length === 0 ? "transparent" : BLACK,
+                            borderRadius: borderRadius,
+                            display: "flex",
+                            flexDirection: "column",
+                            transition:
+                                "height 0.5s, border 0.5s, background-color 0.5s, color 0.5s",
+                            height: chatHistory.length === 0 ? "0" : `calc(10 * ${height}vh + 9px)`,
+                            border:
+                                chatHistory.length === 0
+                                    ? "1px solid transparent"
+                                    : "1px solid #ddd",
+                            overflowX: "hidden",
+                            overflowY: "scroll",
+                            cursor: "default",
+                        }}
+                    >
+                        {responseChunk}
+                    </div>
+                </div>
+                <div
+                    style={{
+                        cursor: "text",
+                        borderRadius: borderRadius,
+                        display: "flex",
+                        flexDirection: "column",
+                        flex: open.search ? "1 1 100%" : `0 0 ${height}vh`,
+                        transition: `flex-grow ${transitionSpeed}s, flex-basis ${transitionSpeed}s`,
                         overflow: "none",
                         maxWidth: "100%",
                         height: "fit-content",
                     }}
                     onClick={() => document.getElementById("searchInput").focus()}
                 >
-                    <input
-                        id="searchInput"
-                        type="text"
-                        placeholder="Search"
-                        onChange={(event) => {
-                            const empty = event.target.value.length === 0;
-                            setSearchIsEmpty(empty);
-                            setSomethingSearched(Math.max(somethingSearched, !empty) === 1);
-                            setBackdropZIndex(somethingSearched ? 9 : -1);
-                            setBackdropOpacity(empty ? 0 : 0.9);
-                            props.searchCallback(event.target.value);
-                        }}
-                        style={{
-                            marginLeft: "1rem",
-                            width: "100%",
-                            minHeight: `${height}vh`,
-                            outline: "0",
-                            border: "0",
-                            backgroundColor: "rgba(255, 255, 255, 0)",
-                        }}
-                    />
+                    <span style={{ display: "flex" }}>
+                        <span
+                            style={{
+                                cursor: "pointer",
+                                zIndex: 11,
+                                userSelect: "none",
+                                overflow: "hidden",
+                                borderRadius: borderRadius,
+                                display: "flex",
+                                flexDirection: "column",
+                                transition: `all ${transitionSpeed}s`,
+                                backgroundColor: OFF_WHITE,
+                                flexShrink: "0",
+                                boxShadow: shadow,
+                            }}
+                            className="newNote"
+                            onClick={() =>
+                                setOpen({
+                                    newNote: false,
+                                    chat: false,
+                                    search: true,
+                                })
+                            }
+                        >
+                            <img
+                                src="/newnote.png"
+                                style={{
+                                    maxWidth: "100%",
+                                    width: `${height}vh`,
+                                    height: `${height}vh`,
+                                    objectFit: "cover",
+                                    display: "block",
+                                    flexGrow: "0",
+                                    borderRadius: borderRadius,
+                                }}
+                            />
+                        </span>
+                        <input
+                            id="searchInput"
+                            type="text"
+                            placeholder="Search"
+                            onChange={(event) => {
+                                const empty = event.target.value.length === 0;
+                                setSearchIsEmpty(empty);
+                                setSomethingSearched(Math.max(somethingSearched, !empty) === 1);
+                                setBackdropZIndex(somethingSearched ? 9 : -1);
+                                setBackdropOpacity(empty ? 0 : 0.9);
+                                props.searchCallback(event.target.value);
+                            }}
+                            style={{
+                                marginLeft: "1rem",
+                                width: "100%",
+                                minHeight: `${height}vh`,
+                                outline: "0",
+                                border: "0",
+                                backgroundColor: "transparent",
+                            }}
+                        />
+                    </span>
                     <div
                         className="hideScrollbar"
                         style={{
-                            maxWidth: `calc(100% - ${height}vh)`,
-                            backgroundColor: searchIsEmpty ? "transparent" : TRANSLUSCENT_WHITE,
-                            color: searchIsEmpty ? "transparent" : "black",
+                            maxWidth: `calc(100% - ${height}vh - 2px)`,
+                            backgroundColor: searchIsEmpty ? "transparent" : OFF_WHITE,
+                            color: searchIsEmpty ? "transparent" : BLACK,
                             borderRadius: borderRadius,
                             display: "flex",
                             flexDirection: "column",
@@ -238,6 +456,7 @@ export function Hotbar(props) {
                             border: searchIsEmpty ? "1px solid transparent" : "1px solid #ddd",
                             overflowX: "hidden",
                             overflowY: "scroll",
+                            cursor: "default",
                         }}
                     >
                         {props.filteredContent.map((c) => (
@@ -268,10 +487,10 @@ export function Hotbar(props) {
                     left: "50%",
                     transform: "translateX(-50%)",
                     top: `${2 * height}vh`,
-                    border: "1px solid black",
+                    border: `1px solid ${BLACK}`,
                     borderRadius: borderRadius,
                     zIndex: modalShowing ? 10 : -1,
-                    backgroundColor: TRANSLUSCENT_WHITE,
+                    backgroundColor: OFF_WHITE,
                     padding: "0.5rem 0.5rem",
                     userSelect: "none",
                     opacity: modalShowing ? 1 : 0,
@@ -486,8 +705,8 @@ export function Graph(props) {
                         height: `${NODE_DIAMETER}px`,
                         zIndex: mouseDown ? -1 : 2,
                         cursor: "pointer",
-                        border: "1px solid #444",
-                        backgroundColor: "white",
+                        border: `1px solid ${BLACK}`,
+                        backgroundColor: OFF_WHITE,
                         userSelect: "none",
                         opacity: `${position.key === focusKey || determineHighlighted(position, position.key) ? 1 : UNFOCUSED_OPACITY}`,
                         transform: `translate(${scaledPosition.x}px, ${scaledPosition.y}px)`,
@@ -505,8 +724,8 @@ export function Graph(props) {
                         width: `30vw`,
                         height: `30vh`,
                         zIndex: 999,
-                        border: "1px solid #444",
-                        backgroundColor: "white",
+                        border: `1px solid ${BLACK}`,
+                        backgroundColor: OFF_WHITE,
                         userSelect: "none",
                         padding: "2rem",
                         cursor: "default",

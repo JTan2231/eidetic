@@ -9,18 +9,18 @@ html * {
 
 .newNote {
     opacity: 0.6;
-    border: 1px solid white;
+    border: 1px solid rgb(255, 255, 250);
     transition: opacity 0.4s, border 0.4s;
 }
 
 .newNoteHover {
     opacity: 1;
-    border: 1px solid #bbb;
+    border: 1px solid #161616;
 }
 
 .newNote:hover {
     opacity: 1;
-    border: 1px solid #bbb;
+    border: 1px solid #161616;
 }
 
 .searchItem {
