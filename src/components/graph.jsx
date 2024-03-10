@@ -55,9 +55,10 @@ export function Hotbar(props) {
 
     const [open, setOpen] = useState({
         newNote: false,
-        search: true,
-        chat: false,
+        chat: true,
     });
+
+    const [chatOpen, setChatOpen] = useState(false);
 
     const [modalShowing, setModalShowing] = useState(false);
 
@@ -67,13 +68,12 @@ export function Hotbar(props) {
     const [modalMessage, setModalMessage] = useState(modalSuccess);
 
     const [searchIsEmpty, setSearchIsEmpty] = useState(true);
-    const [somethingSearched, setSomethingSearched] = useState(false);
 
     const [chatHistory, setChatHistory] = useState([
         {
             role: "system",
             content:
-                "You are a helpful creative assistant who excels at drawing connections between seemingly disparate ideas.",
+                "You are a helpful creative assistant who excels at drawing connections between seemingly disparate ideas. Included in each chat message is a list of references from an external database; these have been determined most relevant to the user's response. Please use these references, *in addition to your own knowledge*, to inform the connections you draw. Be as precise (this is important!) and creative as possible. *Do not* explicitly cite the references included in the chat. Rather, speak of it as something that simply *is*, as if it's a source from which to draw inspiration. Be concise in your wording; let the content speak for itself, *do not* use any more words than is necessary to convey the core of the idea--less is more. Be implicit more than explicit. *Do not* elaborate on metaphors or analogies--simply state them and move on.",
         },
     ]);
 
@@ -104,7 +104,7 @@ export function Hotbar(props) {
                     position: "fixed",
                     borderRadius: borderRadius,
                     left: `${(100 - width) / 2}vw`,
-                    top: `${height / 2}vh`,
+                    bottom: `${height * 2}vh`,
                     width: `${width}vw`,
                     height: `${height}vh`,
                     backgroundColor: OFF_WHITE,
@@ -157,6 +157,7 @@ export function Hotbar(props) {
                                 textWrap: "nowrap",
                                 opacity: open.newNote ? 1 : 0,
                                 transition: "all 0.5s",
+                                maxHeight: `${height}vh`
                             }}
                         >
                             Create a new note
@@ -229,173 +230,25 @@ export function Hotbar(props) {
                     }}
                     onClick={() => document.getElementById("chatInput").focus()}
                 >
-                    <span style={{ display: "flex" }}>
-                        <span
-                            style={{
-                                cursor: "pointer",
-                                zIndex: 11,
-                                userSelect: "none",
-                                overflow: "hidden",
-                                borderRadius: borderRadius,
-                                display: "flex",
-                                flexDirection: "column",
-                                transition: `all ${transitionSpeed}s`,
-                                backgroundColor: OFF_WHITE,
-                                flexShrink: "0",
-                                boxShadow: shadow,
-                                justifyContent: "center",
-                            }}
-                            className="newNote"
-                            onClick={() =>
-                                setOpen({
-                                    newNote: false,
-                                    chat: true,
-                                    search: false,
-                                })
-                            }
-                        >
-                            <img
-                                src="/chat.png"
-                                style={{
-                                    maxWidth: "100%",
-                                    width: `${height}vh`,
-                                    objectFit: "cover",
-                                    display: "block",
-                                    flexGrow: "0",
-                                    borderRadius: borderRadius,
-                                }}
-                            />
-                        </span>
-                        <input
-                            id="chatInput"
-                            type="text"
-                            placeholder="Chat"
-                            style={{
-                                marginLeft: "1rem",
-                                width: "100%",
-                                minHeight: `${height}vh`,
-                                outline: "0",
-                                border: "0",
-                                backgroundColor: "transparent",
-                            }}
-                            onKeyDown={(e) => {
-                                if (e.key === "Enter") {
-                                    e.preventDefault();
-                                    const userInput = document.getElementById("chatInput").value;
-                                    const newHistory = [
-                                        ...chatHistory,
-                                        { role: "user", content: userInput },
-                                    ];
-                                    setChatHistory(newHistory);
-                                    fetch("https://api.openai.com/v1/chat/completions", {
-                                        method: "POST",
-                                        headers: {
-                                            "Content-Type": "application/json",
-                                            Authorization: `Bearer ${process.env.REACT_APP_OPENAI_API_KEY}`,
-                                        },
-                                        body: JSON.stringify({
-                                            model: "gpt-4",
-                                            messages: newHistory,
-                                            stream: true,
-                                        }),
-                                    })
-                                        .then((response) => {
-                                            const reader = response.body.getReader();
-                                            let decoder = new TextDecoder();
-                                            let buffer = "";
-
-                                            let chunk = "";
-
-                                            function processText(text) {
-                                                buffer += text;
-                                                let boundary = buffer.indexOf("\n\n");
-
-                                                while (boundary !== -1) {
-                                                    let content = buffer
-                                                        .substring(0, boundary)
-                                                        .trim();
-                                                    if (content.startsWith("data: ")) {
-                                                        const json = JSON.parse(
-                                                            content.substring(5),
-                                                        );
-                                                        const messageChunk =
-                                                            json.choices[0].delta.content;
-                                                        if (messageChunk) {
-                                                            setChatHistory((oldHistory) => {
-                                                                chunk += messageChunk;
-                                                                const newHistory =
-                                                                    oldHistory[
-                                                                        oldHistory.length - 1
-                                                                    ].role === "assistant"
-                                                                        ? oldHistory.slice(0, -1)
-                                                                        : oldHistory;
-
-                                                                newHistory.push({
-                                                                    role: "assistant",
-                                                                    content: chunk,
-                                                                });
-
-                                                                return newHistory;
-                                                            });
-
-                                                            chatRef.current.scrollTop =
-                                                                chatRef.current.scrollHeight;
-                                                        }
-                                                    }
-
-                                                    buffer = buffer.substring(boundary + 2);
-                                                    boundary = buffer.indexOf("\n\n");
-                                                }
-                                            }
-
-                                            return new ReadableStream({
-                                                async start(controller) {
-                                                    while (true) {
-                                                        const { done, value } = await reader.read();
-                                                        if (done) {
-                                                            processText(decoder.decode()); // Process any remaining text
-                                                            controller.close();
-
-                                                            break;
-                                                        }
-
-                                                        const textChunk = decoder.decode(value, {
-                                                            stream: true,
-                                                        });
-
-                                                        processText(textChunk);
-                                                    }
-                                                },
-                                            });
-                                        })
-                                        .catch((err) => console.error(err));
-
-                                    e.target.value = "";
-                                }
-                            }}
-                        />
-                    </span>
                     <div
                         ref={chatRef}
                         className="hideScrollbar"
                         style={{
-                            maxWidth: `calc(100% - ${height}vh - 2px)`,
+                            width: `calc(100% - ${height}vh - 2px)`,
                             backgroundColor:
                                 !open.chat || chatHistory.length === 1 ? "transparent" : OFF_WHITE,
                             color: !open.chat || chatHistory.length === 1 ? "transparent" : BLACK,
                             borderRadius: borderRadius,
                             display: "flex",
                             flexDirection: "column",
-                            transition:
-                                "height 0.5s, border 0.5s, background-color 0.5s, color 0.5s",
+                            position: 'absolute',
+                            bottom: `${height}vh`,
                             height:
-                                !open.chat || chatHistory.length === 1
-                                    ? "0"
-                                    : `calc(10 * ${height}vh + 9px)`,
-                            border:
-                                !open.chat || chatHistory.length === 1
-                                    ? "1px solid transparent"
-                                    : "1px solid #ddd",
+                                chatOpen
+                                    ? 'calc(6 * 3rem)'
+                                    : "0",
+                            transition:
+                                `height ${transitionSpeed}, border ${transitionSpeed}, background-color ${transitionSpeed}, color ${transitionSpeed}`,
                             overflowX: "hidden",
                             overflowY: "scroll",
                             cursor: "default",
@@ -409,84 +262,25 @@ export function Hotbar(props) {
                                         whiteSpace: "wrap",
                                         overflow: "hidden",
                                         minWidth: 0,
-                                        lineHeight: "1.5em",
+                                        lineHeight: "1.5rem",
                                         backgroundColor:
                                             chat.role === "user"
-                                                ? "rgb(240, 240, 235)"
-                                                : "transparent",
+                                                ? "transparent"
+                                                : "rgb(240, 240, 235)",
                                         borderBottom: "1px solid #ddd",
                                         flexShrink: "0",
                                     }}
                                 >
-                                    {chat["content"]}
+                                    {chat.role === 'user' ? chat["content"].split('REFERENCES')[0] : chat['content']}
                                 </div>
                             );
                         })}
                     </div>
-                </div>
-                <div
-                    style={{
-                        cursor: "text",
-                        borderRadius: borderRadius,
-                        display: "flex",
-                        flexDirection: "column",
-                        flex: open.search ? "1 1 100%" : `0 0 ${height}vh`,
-                        transition: `flex-grow ${transitionSpeed}s, flex-basis ${transitionSpeed}s`,
-                        overflow: "none",
-                        maxWidth: "100%",
-                        height: "fit-content",
-                    }}
-                    onClick={() => document.getElementById("searchInput").focus()}
-                >
                     <span style={{ display: "flex" }}>
-                        <span
-                            style={{
-                                cursor: "pointer",
-                                zIndex: 11,
-                                userSelect: "none",
-                                overflow: "hidden",
-                                borderRadius: borderRadius,
-                                display: "flex",
-                                flexDirection: "column",
-                                transition: `all ${transitionSpeed}s`,
-                                backgroundColor: OFF_WHITE,
-                                flexShrink: "0",
-                                boxShadow: shadow,
-                            }}
-                            className="newNote"
-                            onClick={() =>
-                                setOpen({
-                                    newNote: false,
-                                    chat: false,
-                                    search: true,
-                                })
-                            }
-                        >
-                            <img
-                                src="/newnote.png"
-                                style={{
-                                    maxWidth: "100%",
-                                    width: `${height}vh`,
-                                    height: `${height}vh`,
-                                    objectFit: "cover",
-                                    display: "block",
-                                    flexGrow: "0",
-                                    borderRadius: borderRadius,
-                                }}
-                            />
-                        </span>
                         <input
-                            id="searchInput"
+                            id="chatInput"
                             type="text"
-                            placeholder="Search"
-                            onChange={(event) => {
-                                const empty = event.target.value.length === 0;
-                                setSearchIsEmpty(empty);
-                                setSomethingSearched(Math.max(somethingSearched, !empty) === 1);
-                                setBackdropZIndex(somethingSearched ? 9 : -1);
-                                setBackdropOpacity(empty ? 0 : 0.9);
-                                props.searchCallback(event.target.value);
-                            }}
+                            placeholder="Chat"
                             style={{
                                 marginLeft: "1rem",
                                 width: "100%",
@@ -495,45 +289,126 @@ export function Hotbar(props) {
                                 border: "0",
                                 backgroundColor: "transparent",
                             }}
+                            onFocus={() => setChatOpen(true)}
+                            onBlur={() => setChatOpen(false)}
+                            onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                    e.preventDefault();
+
+                                    const userInput = document.getElementById("chatInput").value;
+
+                                    fetch(`${API_URL}embedding-threshold-search`, {
+                                        method: 'POST',
+                                        headers: {
+                                            'Content-Type': 'application/json',
+                                            "Access-Control-Allow-Origin": "http://localhost:3000",
+                                        },
+                                        body: JSON.stringify({
+                                            count: 5,
+                                            content: userInput,
+                                        }),
+                                    }).then(res => res.json()).then(ids => {
+                                        const relevantContent = props.getContentCallback(ids);
+                                        let inputWithReferences = userInput + '\n\nREFERENCES:\n';
+                                        for (const content of relevantContent) {
+                                            inputWithReferences += content + '\n';
+                                        }
+
+                                        const newHistory = [
+                                            ...chatHistory,
+                                            { role: "user", content: inputWithReferences },
+                                        ];
+
+                                        setChatHistory(newHistory);
+                                        fetch("https://api.openai.com/v1/chat/completions", {
+                                            method: "POST",
+                                            headers: {
+                                                "Content-Type": "application/json",
+                                                Authorization: `Bearer ${process.env.REACT_APP_OPENAI_API_KEY}`,
+                                            },
+                                            body: JSON.stringify({
+                                                model: "gpt-4",
+                                                messages: newHistory,
+                                                stream: true,
+                                            }),
+                                        })
+                                            .then((response) => {
+                                                const reader = response.body.getReader();
+                                                let decoder = new TextDecoder();
+                                                let buffer = "";
+
+                                                let chunk = "";
+
+                                                function processText(text) {
+                                                    buffer += text;
+                                                    let boundary = buffer.indexOf("\n\n");
+
+                                                    while (boundary !== -1) {
+                                                        let content = buffer
+                                                            .substring(0, boundary)
+                                                            .trim();
+                                                        if (content.startsWith("data: ")) {
+                                                            const json = JSON.parse(
+                                                                content.substring(5),
+                                                            );
+                                                            const messageChunk =
+                                                                json.choices[0].delta.content;
+                                                            if (messageChunk) {
+                                                                setChatHistory((oldHistory) => {
+                                                                    chunk += messageChunk;
+                                                                    const newHistory =
+                                                                        oldHistory[
+                                                                            oldHistory.length - 1
+                                                                        ].role === "assistant"
+                                                                            ? oldHistory.slice(0, -1)
+                                                                            : oldHistory;
+
+                                                                    newHistory.push({
+                                                                        role: "assistant",
+                                                                        content: chunk,
+                                                                    });
+
+                                                                    return newHistory;
+                                                                });
+
+                                                                chatRef.current.scrollTop =
+                                                                    chatRef.current.scrollHeight;
+                                                            }
+                                                        }
+
+                                                        buffer = buffer.substring(boundary + 2);
+                                                        boundary = buffer.indexOf("\n\n");
+                                                    }
+                                                }
+
+                                                return new ReadableStream({
+                                                    async start(controller) {
+                                                        while (true) {
+                                                            const { done, value } = await reader.read();
+                                                            if (done) {
+                                                                processText(decoder.decode()); // Process any remaining text
+                                                                controller.close();
+
+                                                                break;
+                                                            }
+
+                                                            const textChunk = decoder.decode(value, {
+                                                                stream: true,
+                                                            });
+
+                                                            processText(textChunk);
+                                                        }
+                                                    },
+                                                });
+                                            })
+                                            .catch((err) => console.error(err));
+
+                                        e.target.value = "";
+                                    });
+                                }
+                            }}
                         />
                     </span>
-                    <div
-                        className="hideScrollbar"
-                        style={{
-                            maxWidth: `calc(100% - ${height}vh - 2px)`,
-                            backgroundColor: searchIsEmpty ? "transparent" : OFF_WHITE,
-                            color: searchIsEmpty ? "transparent" : BLACK,
-                            borderRadius: borderRadius,
-                            display: "flex",
-                            flexDirection: "column",
-                            transition:
-                                "height 0.5s, border 0.5s, background-color 0.5s, color 0.5s",
-                            height: searchIsEmpty ? "0" : `calc(10 * ${height}vh + 9px)`,
-                            border: searchIsEmpty ? "1px solid transparent" : "1px solid #ddd",
-                            overflowX: "hidden",
-                            overflowY: "scroll",
-                            cursor: "default",
-                        }}
-                    >
-                        {props.filteredContent.map((c) => (
-                            <div
-                                className="searchItem"
-                                style={{
-                                    padding: "0.75rem 1rem",
-                                    whiteSpace: "nowrap",
-                                    overflow: "hidden",
-                                    textOverflow: "ellipsis",
-                                    minWidth: 0,
-                                    borderBottom: "1px solid #ddd",
-                                    cursor: "pointer",
-                                    userSelect: "none",
-                                    flexShrink: "0",
-                                }}
-                            >
-                                {c}
-                            </div>
-                        ))}
-                    </div>
                 </div>
             </div>
             <div
@@ -682,6 +557,10 @@ export function Graph(props) {
         }
     };
 
+    const getContentByIds = (ids) => {
+        return nodePositions.filter(np => ids.includes(np.key)).map(np => np.content);
+    }
+
     return (
         <>
             <div style={{ position: "fixed", left: 0, top: 0 }}>
@@ -709,13 +588,14 @@ export function Graph(props) {
                     setFilteredContent(
                         query.length > 0
                             ? nodePositions
-                                  .map((p) => p.content)
-                                  .filter((c) => c.toLowerCase().includes(query.toLowerCase()))
+                                .map((p) => p.content)
+                                .filter((c) => c.toLowerCase().includes(query.toLowerCase()))
                             : [],
                     );
                     setSearchQuery(query);
                 }}
                 filteredContent={filteredContent}
+                getContentCallback={getContentByIds}
             />
             <div
                 style={{
